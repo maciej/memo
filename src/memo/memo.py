@@ -138,7 +138,7 @@ def notes(folder, edit, add, delete, move, flist, search, remove, export):
 
     if search:
         click.secho("\nFetching notes...\n", fg="yellow")
-        fuzzy_notes()
+        fuzzy_notes(folder=folder)
         _maybe_timing("memo.notes/total", t_total)
         return
 

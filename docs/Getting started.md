@@ -23,6 +23,8 @@ Options:
   --help             Show this message and exit.
 ```
 
+Note: `memo notes --search` prefers the SQLite backend for fast note listing when available, but previews still use AppleScript. Because the Notes database schema is private and best-effort, the SQLite search listing can be subtly wrong (for example, some notes may show up as `Untitled` even if Notes.app displays a title).
+
 Use the command `memo rem --help` to see all the options available for reminders.
 
 ```bash
