@@ -4,6 +4,8 @@
 
 - `src/memo/`: CLI entrypoint and Click command definitions (`memo`).
 - `src/memo_helpers/`: Apple Notes/Reminders integrations (mostly `osascript` calls) plus helper utilities.
+- `src/memo_helpers/notes_sqlite.py`: fast, read-only Apple Notes listing via `NoteStore.sqlite` (best-effort; private schema).
+- `src/memo_helpers/notes_provider.py` + `src/memo_helpers/cache.py`: backend selection + short TTL cache for listing.
 - `test/`: pytest-based CLI tests (Click `CliRunner`).
 - `docs/` + `mkdocs.yml`: project documentation (MkDocs).
 - `.github/`: repo assets (images, workflows).
@@ -39,5 +41,10 @@ This is a Python package (requires Python `>=3.13`) and uses `uv` for local deve
 
 ## Platform Notes (Important)
 
-- Memo automates Apple Notes/Reminders via `osascript`, so most functionality is macOS-only.
+- Memo is macOS-focused: it automates Apple Notes/Reminders via `osascript` for many operations.
+- For `memo notes` listing, memo can optionally read the local Notes DB (`~/Library/Group Containers/group.com.apple.notes/NoteStore.sqlite`) for speed.
 - Expect macOS privacy prompts (Automation access) on first run; document new prompts/permissions in PRs when relevant.
+- Perf/debug knobs:
+  - `MEMO_NOTES_BACKEND=auto|sqlite|applescript` (force backend for testing).
+  - `MEMO_CACHE_TTL_SECONDS=30` and `MEMO_NO_CACHE=1` (listing cache).
+  - `MEMO_TIMING=1` (prints timings to stderr).
