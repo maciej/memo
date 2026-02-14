@@ -1,7 +1,8 @@
 import click
 import datetime
 import os
-from memo_helpers.get_memo import get_note, get_note_titles, get_reminder
+import time
+from memo_helpers.get_memo import get_note, get_reminder
 from memo_helpers.edit_memo import edit_note, edit_reminder
 from memo_helpers.add_memo import add_note, add_reminder
 from memo_helpers.delete_memo import (
@@ -12,7 +13,8 @@ from memo_helpers.delete_memo import (
 )
 from memo_helpers.move_memo import move_note
 from memo_helpers.choice_memo import pick_note, pick_reminder
-from memo_helpers.list_folder import notes_folders, notes_folder_names
+from memo_helpers.list_folder import notes_folders
+from memo_helpers.notes_provider import list_folder_names, list_note_titles
 from memo_helpers.validation_memo import selection_notes_validation
 from memo_helpers.search_memo import fuzzy_notes
 from memo_helpers.export_memo import export_memo
@@ -20,6 +22,12 @@ from memo_helpers.export_memo import export_memo
 # TODO: Check if notes can be imported.
 # TODO: Check if its possible to fetch .localized names from the folders.
 # TODO: Check alternative to md_converter to support images and attachments.
+
+def _maybe_timing(label: str, start: float) -> None:
+    if os.getenv("MEMO_TIMING") != "1":
+        return
+    ms = (time.perf_counter() - start) * 1000.0
+    click.echo(f"[timing] {label}: {ms:.1f}ms", err=True)
 
 
 @click.group(invoke_without_command=False)
@@ -79,6 +87,7 @@ def cli():
     help="Export your notes to the Desktop.",
 )
 def notes(folder, edit, add, delete, move, flist, search, remove, export):
+    t_total = time.perf_counter()
     selection_notes_validation(
         folder, edit, delete, move, add, flist, search, remove, export
     )
@@ -130,40 +139,54 @@ def notes(folder, edit, add, delete, move, flist, search, remove, export):
     if search:
         click.secho("\nFetching notes...\n", fg="yellow")
         fuzzy_notes()
+        _maybe_timing("memo.notes/total", t_total)
         return
 
-    folder_names = notes_folder_names() if folder else []
+    t_validate = time.perf_counter()
+    folder_names = list_folder_names() if folder else []
+    _maybe_timing("memo.notes/folder_validate", t_validate)
     if folder and folder not in folder_names:
         click.echo("\nThe folder does not exists.")
         click.echo("\nUse 'memo notes -fl' to see your folders")
+        _maybe_timing("memo.notes/total", t_total)
         return
 
     click.secho("\nFetching notes...", fg="yellow")
 
     listing_only = not (edit or delete or move)
     if listing_only:
-        notes_list = get_note_titles(folder=folder)
+        t_fetch = time.perf_counter()
+        notes_list = list_note_titles(folder=folder)
+        _maybe_timing("memo.notes/fetch_titles", t_fetch)
         notes_list_filter = [note for note in enumerate(notes_list, start=1)]
         if not notes_list_filter:
             click.echo("\nNo notes found.")
         else:
             title = f"Your Notes in folder {folder}:" if folder else "All your notes:"
             click.echo(f"\n{title}\n")
+            t_print = time.perf_counter()
             for note in notes_list_filter:
                 click.echo(f"{note[0]}. {note[1]}")
+            _maybe_timing("memo.notes/print_list", t_print)
+        _maybe_timing("memo.notes/total", t_total)
         return
 
     # Note selection operations need IDs.
+    t_fetch = time.perf_counter()
     note_map, notes_list = get_note(folder=folder)
+    _maybe_timing("memo.notes/fetch_ids", t_fetch)
     notes_list_filter = [note for note in enumerate(notes_list, start=1)]
     if not notes_list_filter:
         click.echo("\nNo notes found.")
+        _maybe_timing("memo.notes/total", t_total)
         return
 
     title = f"Your Notes in folder {folder}:" if folder else "All your notes:"
     click.echo(f"\n{title}\n")
+    t_print = time.perf_counter()
     for note in notes_list_filter:
         click.echo(f"{note[0]}. {note[1]}")
+    _maybe_timing("memo.notes/print_list", t_print)
 
     if edit:
         note_id = pick_note(note_map, notes_list_filter, "edit")
@@ -181,6 +204,7 @@ def notes(folder, edit, add, delete, move, flist, search, remove, export):
         note_id = pick_note(note_map, notes_list_filter, "delete")
         delete_note(note_id)
     # All other actions handled above.
+    _maybe_timing("memo.notes/total", t_total)
 
 
 @cli.command()

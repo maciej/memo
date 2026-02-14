@@ -1,7 +1,16 @@
 import subprocess
 import click
+import os
+import time
 
 FOLDER_SEPARATOR = "|||"
+
+
+def _maybe_timing(label: str, start: float) -> None:
+    if os.getenv("MEMO_TIMING") != "1":
+        return
+    ms = (time.perf_counter() - start) * 1000.0
+    click.echo(f"[timing] {label}: {ms:.1f}ms", err=True)
 
 
 def _build_tree(folders_with_parents):
@@ -40,13 +49,18 @@ def notes_folder_names():
     return output
     """
     try:
+        t0 = time.perf_counter()
         result = subprocess.run(
             ["osascript", "-e", script], capture_output=True, text=True, check=True
         )
+        _maybe_timing("notes_folder_names/osascript", t0)
+        t_parse = time.perf_counter()
         raw = result.stdout.strip()
         if not raw:
             return []
-        return [line.strip() for line in raw.split("\n") if line.strip()]
+        out = [line.strip() for line in raw.split("\n") if line.strip()]
+        _maybe_timing("notes_folder_names/parse_lines", t_parse)
+        return out
     except subprocess.CalledProcessError as e:
         stderr = ""
         try:
@@ -88,9 +102,12 @@ def notes_folders():
     """
 
     try:
+        t0 = time.perf_counter()
         result = subprocess.run(
             ["osascript", "-e", script], capture_output=True, text=True, check=True
         )
+        _maybe_timing("notes_folders/osascript", t0)
+        t_parse = time.perf_counter()
         raw = result.stdout.strip()
         if not raw:
             return ""
@@ -100,9 +117,12 @@ def notes_folders():
             if FOLDER_SEPARATOR in line:
                 name, parent = line.split(FOLDER_SEPARATOR, 1)
                 folders_with_parents.append((name.strip(), parent.strip()))
+        _maybe_timing("notes_folders/parse_pairs", t_parse)
 
+        t_render = time.perf_counter()
         children = _build_tree(folders_with_parents)
         lines = _render_tree(children)
+        _maybe_timing("notes_folders/render_tree", t_render)
         return "\n".join(lines)
     except subprocess.CalledProcessError as e:
         stderr = ""
