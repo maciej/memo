@@ -5,7 +5,7 @@ import click
 from memo_helpers.cache import cache_get, cache_set
 from memo_helpers.get_memo import get_note_titles
 from memo_helpers.get_memo import get_note
-from memo_helpers.list_folder import notes_folder_names
+from memo_helpers.list_folder import notes_folder_names, notes_folders_with_parents, render_folder_tree
 
 
 def _maybe_timing(label: str, start: float) -> None:
@@ -139,6 +139,73 @@ def list_folder_names() -> list[str]:
 
     out = notes_folder_names()
     _maybe_timing("notes_provider/applescript_folders", t0)
+    cache_set(cache_key, out)
+    return out
+
+
+def list_folders_tree() -> str:
+    """
+    List folders/subfolders as an indented tree (used by `memo notes -fl`).
+
+    Uses the same backend selection + cache policy as other Notes listings.
+    """
+    backend = _backend()
+    cache_key = f"folders_tree:v1:{backend}"
+    cached = cache_get(cache_key)
+    if isinstance(cached, str):
+        if os.getenv("MEMO_TIMING") == "1":
+            click.echo("[timing] notes_provider/cache_hit_folders_tree", err=True)
+        return cached
+
+    t0 = time.perf_counter()
+    if backend == "applescript":
+        pairs = notes_folders_with_parents()
+        out = render_folder_tree(pairs)
+        _maybe_timing("notes_provider/applescript_folders_tree_forced", t0)
+        cache_set(cache_key, out)
+        return out
+
+    if backend == "sqlite":
+        try:
+            from memo_helpers.notes_sqlite import (
+                list_folders_with_parents as sqlite_pairs,
+            )
+        except Exception as e:
+            raise click.ClickException(
+                f"SQLite Notes backend unavailable: {type(e).__name__}"
+            )
+        try:
+            pairs = sqlite_pairs()
+        except Exception as e:
+            raise click.ClickException(
+                f"SQLite Notes backend failed: {type(e).__name__}"
+            )
+        out = render_folder_tree(pairs)
+        _maybe_timing("notes_provider/sqlite_folders_tree_forced", t0)
+        cache_set(cache_key, out)
+        return out
+
+    # auto
+    try:
+        from memo_helpers.notes_sqlite import (
+            list_folders_with_parents as sqlite_pairs,
+        )
+
+        pairs = sqlite_pairs()
+        out = render_folder_tree(pairs)
+        _maybe_timing("notes_provider/sqlite_folders_tree_ok", t0)
+        cache_set(cache_key, out)
+        return out
+    except Exception as e:
+        if os.getenv("MEMO_TIMING") == "1":
+            click.echo(
+                f"[timing] notes_provider/sqlite_folders_tree_fallback: {type(e).__name__}",
+                err=True,
+            )
+
+    pairs = notes_folders_with_parents()
+    out = render_folder_tree(pairs)
+    _maybe_timing("notes_provider/applescript_folders_tree", t0)
     cache_set(cache_key, out)
     return out
 

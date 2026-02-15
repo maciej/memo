@@ -13,8 +13,7 @@ from memo_helpers.delete_memo import (
 )
 from memo_helpers.move_memo import move_note
 from memo_helpers.choice_memo import pick_note, pick_reminder
-from memo_helpers.list_folder import notes_folders
-from memo_helpers.notes_provider import list_folder_names, list_note_titles
+from memo_helpers.notes_provider import list_folder_names, list_note_titles, list_folders_tree
 from memo_helpers.validation_memo import selection_notes_validation
 from memo_helpers.search_memo import fuzzy_notes
 from memo_helpers.export_memo import export_memo
@@ -94,7 +93,7 @@ def notes(folder, edit, add, delete, move, flist, search, remove, export):
     # Avoid expensive AppleScript calls unless the chosen action needs them.
     if flist:
         click.echo("\nFolders and subfolders in Notes:")
-        click.echo(f"\n{notes_folders()}")
+        click.echo(f"\n{list_folders_tree()}")
         return
 
     if add:
@@ -102,7 +101,7 @@ def notes(folder, edit, add, delete, move, flist, search, remove, export):
         return
 
     if remove:
-        click.echo(f"\n{notes_folders()}")
+        click.echo(f"\n{list_folders_tree()}")
         click.secho(
             "\n⚠️ Make sure the folder is empty, because the notes it includes will be deleted too.",
             fg="red",

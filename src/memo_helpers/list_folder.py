@@ -72,7 +72,14 @@ def notes_folder_names():
         raise click.ClickException(f"AppleScript execution failed: {e}")
 
 
-def notes_folders():
+def notes_folders_with_parents() -> list[tuple[str, str]]:
+    """
+    Return a list of (folder_name, parent_folder_name) pairs via AppleScript.
+
+    Note: This mirrors the existing `notes_folders()` logic and intentionally uses
+    folder names (not stable IDs) for parent links, because that's what the
+    AppleScript side provides.
+    """
     script = f"""
     set prevTIDs to AppleScript's text item delimiters
     set AppleScript's text item delimiters to linefeed
@@ -110,7 +117,7 @@ def notes_folders():
         t_parse = time.perf_counter()
         raw = result.stdout.strip()
         if not raw:
-            return ""
+            return []
 
         folders_with_parents = []
         for line in raw.split("\n"):
@@ -118,12 +125,7 @@ def notes_folders():
                 name, parent = line.split(FOLDER_SEPARATOR, 1)
                 folders_with_parents.append((name.strip(), parent.strip()))
         _maybe_timing("notes_folders/parse_pairs", t_parse)
-
-        t_render = time.perf_counter()
-        children = _build_tree(folders_with_parents)
-        lines = _render_tree(children)
-        _maybe_timing("notes_folders/render_tree", t_render)
-        return "\n".join(lines)
+        return folders_with_parents
     except subprocess.CalledProcessError as e:
         stderr = ""
         try:
@@ -133,4 +135,26 @@ def notes_folders():
         if stderr:
             raise click.ClickException(f"AppleScript execution failed.\n\n{stderr}")
         raise click.ClickException(f"AppleScript execution failed: {e}")
-        return ""
+
+
+def render_folder_tree(folders_with_parents: list[tuple[str, str]]) -> str:
+    """
+    Render an indented folder tree from (name, parent_name) pairs.
+
+    This is used for both AppleScript and sqlite backends to guarantee identical
+    ordering and formatting between backends.
+    """
+    t_render = time.perf_counter()
+    children = _build_tree(folders_with_parents)
+    # Ensure stable, backend-independent ordering.
+    for parent, names in children.items():
+        names.sort(key=str.casefold)
+    lines = _render_tree(children)
+    _maybe_timing("notes_folders/render_tree", t_render)
+    return "\n".join(lines)
+
+
+def notes_folders() -> str:
+    # Backwards-compatible helper (AppleScript-only), used by older call sites.
+    pairs = notes_folders_with_parents()
+    return render_folder_tree(pairs)

@@ -13,6 +13,7 @@ def _patch_notes(monkeypatch):
         lambda folder="": ["Work - Alpha", "Work - Beta"] if not folder else ["Work - Alpha"],
     )
     monkeypatch.setattr(memo_mod, "list_folder_names", lambda: ["Work", "Personal"])
+    monkeypatch.setattr(memo_mod, "list_folders_tree", lambda: "Personal\nWork\n  Sub")
 
     # Provide stable IDs so edit/move/delete code paths can select something.
     note_map = {1: ("note-id-1", "Work - Alpha"), 2: ("note-id-2", "Work - Beta")}

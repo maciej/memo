@@ -195,10 +195,66 @@ def list_folder_names() -> list[str]:
     out = []
     for r in rows:
         name = (r["folder"] or "").strip()
-        if not name or name in _DELETED_TRANSLATIONS:
+        if not name:
             continue
         out.append(name)
     out.sort(key=str.casefold)
+    return out
+
+
+def list_folders_with_parents() -> list[tuple[str, str]]:
+    """
+    Return a list of (folder_name, parent_folder_name) pairs from NoteStore.sqlite.
+
+    Entities:
+    - ICFolder: Z_ENT=15, name in ZTITLE2, parent FK in ZPARENT
+    """
+    db_path = os.getenv("MEMO_NOTES_DB_PATH", _default_db_path())
+    if not os.path.exists(db_path):
+        raise FileNotFoundError(db_path)
+
+    t0 = time.perf_counter()
+    con = _connect(db_path)
+    try:
+        cols = _note_columns(con)
+        title_col = "ZTITLE2" if "ZTITLE2" in cols else "ZTITLE1"
+        parent_fk = None
+        for c in ("ZPARENT", "ZPARENT1", "ZPARENT2"):
+            if c in cols:
+                parent_fk = c
+                break
+
+        if parent_fk:
+            q = f"""
+            select
+                f.{title_col} as name,
+                p.{title_col} as parent
+            from ZICCLOUDSYNCINGOBJECT f
+            left join ZICCLOUDSYNCINGOBJECT p
+                on p.Z_PK = f.{parent_fk} and p.Z_ENT = 15
+            where f.Z_ENT = 15 and f.{title_col} is not null and f.{title_col} != ''
+            """
+        else:
+            # Schema variant without a visible parent FK; still return a flat listing.
+            q = f"""
+            select
+                f.{title_col} as name,
+                '' as parent
+            from ZICCLOUDSYNCINGOBJECT f
+            where f.Z_ENT = 15 and f.{title_col} is not null and f.{title_col} != ''
+            """
+        rows = con.execute(q).fetchall()
+    finally:
+        con.close()
+    _maybe_timing("notes_sqlite/list_folders_with_parents/query", t0)
+
+    out: list[tuple[str, str]] = []
+    for r in rows:
+        name = (r["name"] or "").strip()
+        if not name:
+            continue
+        parent = (r["parent"] or "").strip()
+        out.append((name, parent))
     return out
 
 
